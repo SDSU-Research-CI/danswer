@@ -26,17 +26,43 @@ spec:
       labels:
         app: api-server
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: nautilus.io/linstor
+                operator: Exists
       containers:
       - name: api-server
         image: danswer/danswer-backend:latest
         imagePullPolicy: IfNotPresent
-        command:
-          - "/bin/sh"
-          - "-c"
-          - |
-            alembic upgrade head &&
-            echo "Starting Danswer Api Server" &&
-            uvicorn danswer.main:app --host 0.0.0.0 --port 8080
+        # command:
+        #   - "/bin/sh"
+        #   - "-c"
+        #   - |
+        #     alembic upgrade head &&
+        #     echo "Starting Danswer Api Server" &&
+        #     uvicorn danswer.main:app --host 0.0.0.0 --port 8080
+        command: ["bash", "-c", "sleep 3600"]
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: danswer-secrets
+              key: postgres_user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: danswer-secrets
+              key: postgres_password
+        resources:
+          limits:
+            memory: 8Gi
+            cpu: 4
+          requests:
+            memory: 4Gi
+            cpu: 2
         ports:
         - containerPort: 8080
         # There are some extra values since this is shared between services
@@ -56,3 +82,33 @@ spec:
       - name: file-connector-storage
         persistentVolumeClaim:
           claimName: file-connector-pvc
+      tolerations:
+      - effect: NoSchedule
+        key: nautilus.io/sdsu-fix
+        operator: Exists
+      - effect: NoSchedule
+        key: nautilus.io/csu-tide
+        operator: Exists
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: haproxy
+    ingress.kubernetes.io/allowlist-source-range: "130.191.0.0/16, 146.244.0.0/16"
+  name: danswer-api-ingress
+spec:
+  rules:
+  - host: sdsu-danswer-api.nrp-nautilus.io
+    http:
+      paths:
+      - backend:
+          service:
+            name: api-server-service
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - sdsu-danswer-api.nrp-nautilus.io

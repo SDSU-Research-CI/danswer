@@ -12,9 +12,23 @@ spec:
       labels:
         app: background
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: nautilus.io/linstor
+                operator: Exists
       containers:
       - name: background
         image: danswer/danswer-backend:latest
+        resources:
+          limits:
+            memory: 8Gi
+            cpu: 4
+          requests:
+            memory: 4Gi
+            cpu: 2
         imagePullPolicy: IfNotPresent
         command: ["/usr/bin/supervisord"]
         # There are some extra values since this is shared between services
@@ -34,3 +48,10 @@ spec:
       - name: file-connector-storage
         persistentVolumeClaim:
           claimName: file-connector-pvc
+      tolerations:
+      - effect: NoSchedule
+        key: nautilus.io/sdsu-fix
+        operator: Exists
+      - effect: NoSchedule
+        key: nautilus.io/csu-tide
+        operator: Exists

@@ -14,7 +14,7 @@ spec:
       protocol: TCP
       port: 3000
       targetPort: 80
-  type: LoadBalancer
+  type: ClusterIP
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -30,6 +30,13 @@ spec:
       labels:
         app: nginx
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: nautilus.io/linstor
+                operator: Exists
       containers:
       - name: nginx
         image: nginx:1.23.4-alpine
@@ -49,7 +56,21 @@ spec:
         - -c
         - |
           while :; do sleep 6h & wait $$!; nginx -s reload; done & nginx -g "daemon off;"
+        resources:
+          limits:
+            memory: 8Gi
+            cpu: 4
+          requests:
+            memory: 4Gi
+            cpu: 2
       volumes:
       - name: nginx-conf
         configMap:
           name: nginx-configmap
+      tolerations:
+      - effect: NoSchedule
+        key: nautilus.io/sdsu-fix
+        operator: Exists
+      - effect: NoSchedule
+        key: nautilus.io/csu-tide
+        operator: Exists

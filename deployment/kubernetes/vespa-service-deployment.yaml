@@ -14,7 +14,7 @@ spec:
       protocol: TCP
       port: 8081
       targetPort: 8081
-  type: LoadBalancer
+  type: ClusterIP
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -33,12 +33,33 @@ spec:
       labels:
         app: vespa
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: nautilus.io/sdsu-llm
+                operator: Exists
+              - key: nvidia.com/gpu.product
+                operator: In
+                values:
+                - NVIDIA-A100-80GB-PCIe
+              - key: nautilus.io/linstor
+                operator: Exists
       containers:
       - name: vespa
         image: vespaengine/vespa:8.277.17
+        command: ["/bin/bash", "-c", "/opt/vespa/bin/vespa-start-configserver && /opt/vespa/bin/vespa-start-services && /opt/vespa/bin/vespa-logfmt --follow --format \"$VESPA_LOG_FORMAT\""]
+        resources:
+          limits:
+            memory: 8Gi
+            cpu: 4
+          requests:
+            memory: 4Gi
+            cpu: 2
         imagePullPolicy: IfNotPresent
         securityContext:
-          privileged: true
+          # privileged: true
           runAsUser: 0
         ports:
         - containerPort: 19071
@@ -51,13 +72,24 @@ spec:
         volumeMounts:
         - name: vespa-storage
           mountPath: /opt/vespa/var/
+      tolerations:
+      - effect: NoSchedule
+        key: nautilus.io/sdsu-fix
+        operator: Exists
+      - effect: NoSchedule
+        key: nautilus.io/csu-tide
+        operator: Exists
+      - effect: NoSchedule
+        key: nautilus.io/sdsu-llm
+        operator: Exists
   volumeClaimTemplates:
   - metadata:
       name: vespa-storage
     spec:
       accessModes:
       - ReadWriteOnce
+      storageClassName: linstor-sdsu
       resources:
         requests:
           # Adjust the storage request size as needed.
-          storage: 1Gi
+          storage: 5Gi

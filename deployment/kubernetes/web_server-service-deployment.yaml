@@ -25,6 +25,13 @@ spec:
       labels:
         app: web-server
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: nautilus.io/linstor
+                operator: Exists
       containers:
       - name: web-server
         image: danswer/danswer-web-server:latest
@@ -36,3 +43,40 @@ spec:
         envFrom:
         - configMapRef:
             name: env-configmap
+        resources:
+          limits:
+            memory: 4Gi
+            cpu: 2
+          requests:
+            memory: 2Gi
+            cpu: 1
+      tolerations:
+      - effect: NoSchedule
+        key: nautilus.io/sdsu-fix
+        operator: Exists
+      - effect: NoSchedule
+        key: nautilus.io/csu-tide
+        operator: Exists
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: haproxy
+    ingress.kubernetes.io/allowlist-source-range: "130.191.0.0/16, 146.244.0.0/16"
+  name: danswer-web-ingress
+spec:
+  rules:
+  - host: sdsu-danswer.nrp-nautilus.io
+    http:
+      paths:
+      - backend:
+          service:
+            name: web-server-service
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - sdsu-danswer.nrp-nautilus.io

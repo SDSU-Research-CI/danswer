@@ -9,7 +9,7 @@ spec:
     - protocol: TCP
       port: 5432
       targetPort: 5432
-  clusterIP: None
+  type: ClusterIP
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -26,9 +26,29 @@ spec:
       labels:
         app: relational-db
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: nautilus.io/linstor
+                operator: Exists
+              - key: nautilus.io/sdsu-llm
+                operator: Exists
+              - key: nvidia.com/gpu.product
+                operator: In
+                values:
+                - NVIDIA-A100-80GB-PCIe
       containers:
       - name: relational-db
         image: postgres:15.2-alpine
+        resources:
+          limits:
+            memory: 8Gi
+            cpu: 4
+          requests:
+            memory: 4Gi
+            cpu: 2
         env:
         - name: POSTGRES_USER
           valueFrom:
@@ -46,12 +66,23 @@ spec:
         - mountPath: /var/lib/postgresql/data
           name: db-storage
           subPath: postgres
+      tolerations:
+      - effect: NoSchedule
+        key: nautilus.io/sdsu-fix
+        operator: Exists
+      - effect: NoSchedule
+        key: nautilus.io/sdsu-llm
+        operator: Exists
+      - effect: NoSchedule
+        key: nautilus.io/csu-tide
+        operator: Exists
   volumeClaimTemplates:
   - metadata:
       name: db-storage
     spec:
       accessModes: ["ReadWriteOnce"]
+      storageClassName: linstor-sdsu
       resources:
         requests:
           # Adjust the storage request size as needed.
-          storage: 1Gi
+          storage: 5Gi
